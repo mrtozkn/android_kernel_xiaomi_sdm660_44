@@ -177,7 +177,9 @@ static int fq_codel_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 	struct fq_codel_sched_data *q = qdisc_priv(sch);
 	unsigned int idx, prev_backlog;
 	struct fq_codel_flow *flow;
-	int uninitialized_var(ret);
+	int ret;
+	unsigned int pkt_len;
+	bool memory_limited;
 
 	idx = fq_codel_classify(skb, sch, &ret);
 	if (idx == 0) {
