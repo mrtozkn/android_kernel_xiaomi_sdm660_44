@@ -1527,6 +1527,7 @@ static struct ctl_table kern_table[] = {
 		.proc_handler	= bpf_unpriv_handler,
 		.extra1		= &zero,
 		.extra2		= &two,
+
 	},
 #endif
 #if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
