@@ -1152,11 +1152,21 @@ static irqreturn_t arm_smmu_evtq_thread(int irq, void *dev)
 	while (!queue_remove_raw(q, evt)) {
 		u8 id = evt[0] >> EVTQ_0_ID_SHIFT & EVTQ_0_ID_MASK;
 
-		dev_info(smmu->dev, "event 0x%02x received:\n", id);
-		for (i = 0; i < ARRAY_SIZE(evt); ++i)
-			dev_info(smmu->dev, "\t0x%016llx\n",
-				 (unsigned long long)evt[i]);
-	}
+			dev_info(smmu->dev, "event 0x%02x received:\n", id);
+			for (i = 0; i < ARRAY_SIZE(evt); ++i)
+				dev_info(smmu->dev, "\t0x%016llx\n",
+					 (unsigned long long)evt[i]);
+
+			cond_resched();
+		}
+
+		/*
+		 * Not much we can do on overflow, so scream and pretend we're
+		 * trying harder.
+		 */
+		if (queue_sync_prod(q) == -EOVERFLOW)
+			dev_err(smmu->dev, "EVTQ overflow detected -- events lost\n");
+	} while (!queue_empty(q));
 
 	/* Sync our overflow flag, as we believe we're up to speed */
 	q->cons = Q_OVF(q, q->prod) | Q_WRP(q, q->cons) | Q_IDX(q, q->cons);
