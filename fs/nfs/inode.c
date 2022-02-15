@@ -687,7 +687,7 @@ int nfs_getattr(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)
 		if (S_ISDIR(inode->i_mode))
 			stat->blksize = NFS_SERVER(inode)->dtsize;
 	}
-out:
+
 	trace_nfs_getattr_exit(inode, err);
 	return err;
 }
