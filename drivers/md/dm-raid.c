@@ -1364,10 +1364,18 @@ static void raid_status(struct dm_target *ti, status_type_t type,
 			unsigned status_flags, char *result, unsigned maxlen)
 {
 	struct raid_set *rs = ti->private;
-	unsigned raid_param_cnt = 1; /* at least 1 for chunksize */
-	unsigned sz = 0;
-	int i, array_in_sync = 0;
-	sector_t sync;
+	struct mddev *mddev = &rs->md;
+	struct r5conf *conf = rs_is_raid456(rs) ? mddev->private : NULL;
+	int i, max_nr_stripes = conf ? conf->max_nr_stripes : 0;
+	bool array_in_sync;
+	unsigned int raid_param_cnt = 1; /* at least 1 for chunksize */
+	unsigned int sz = 0;
+	unsigned int rebuild_disks;
+	unsigned int write_mostly_params = 0;
+	sector_t progress, resync_max_sectors, resync_mismatches;
+	const char *sync_action;
+	struct raid_type *rt;
+	struct md_rdev *rdev;
 
 	switch (type) {
 	case STATUSTYPE_INFO:
