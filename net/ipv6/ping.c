@@ -25,35 +25,10 @@
 #include <net/udp.h>
 #include <net/transp_v6.h>
 #include <net/ping.h>
-
-struct proto pingv6_prot = {
-	.name =		"PINGv6",
-	.owner =	THIS_MODULE,
-	.init =		ping_init_sock,
-	.close =	ping_close,
-	.connect =	ip6_datagram_connect_v6_only,
-	.disconnect =	udp_disconnect,
-	.setsockopt =	ipv6_setsockopt,
-	.getsockopt =	ipv6_getsockopt,
-	.sendmsg =	ping_v6_sendmsg,
-	.recvmsg =	ping_recvmsg,
-	.bind =		ping_bind,
-	.backlog_rcv =	ping_queue_rcv_skb,
-	.hash =		ping_hash,
-	.unhash =	ping_unhash,
-	.get_port =	ping_get_port,
-	.obj_size =	sizeof(struct raw6_sock),
-};
-EXPORT_SYMBOL_GPL(pingv6_prot);
-
-static struct inet_protosw pingv6_protosw = {
-	.type =      SOCK_DGRAM,
-	.protocol =  IPPROTO_ICMPV6,
-	.prot =      &pingv6_prot,
-	.ops =       &inet6_sockraw_ops,
-	.flags =     INET_PROTOSW_REUSE,
-};
-
+static void ping_v6_destroy(struct sock *sk)
+{
+	inet6_destroy_sock(sk);
+}
 
 /* Compatibility glue so we can support IPv6 when it's compiled as a module */
 static int dummy_ipv6_recv_error(struct sock *sk, struct msghdr *msg, int len,
@@ -193,6 +168,35 @@ dst_err_out:
 
 	return len;
 }
+
+struct proto pingv6_prot = {
+	.name =		"PINGv6",
+	.owner =	THIS_MODULE,
+	.init =		ping_init_sock,
+	.close =	ping_close,
+	.destroy =	ping_v6_destroy,
+	.connect =	ip6_datagram_connect_v6_only,
+	.disconnect =	__udp_disconnect,
+	.setsockopt =	ipv6_setsockopt,
+	.getsockopt =	ipv6_getsockopt,
+	.sendmsg =	ping_v6_sendmsg,
+	.recvmsg =	ping_recvmsg,
+	.bind =		ping_bind,
+	.backlog_rcv =	ping_queue_rcv_skb,
+	.hash =		ping_hash,
+	.unhash =	ping_unhash,
+	.get_port =	ping_get_port,
+	.obj_size =	sizeof(struct raw6_sock),
+};
+EXPORT_SYMBOL_GPL(pingv6_prot);
+
+static struct inet_protosw pingv6_protosw = {
+	.type =      SOCK_DGRAM,
+	.protocol =  IPPROTO_ICMPV6,
+	.prot =      &pingv6_prot,
+	.ops =       &inet6_sockraw_ops,
+	.flags =     INET_PROTOSW_REUSE,
+};
 
 #ifdef CONFIG_PROC_FS
 static void *ping_v6_seq_start(struct seq_file *seq, loff_t *pos)
