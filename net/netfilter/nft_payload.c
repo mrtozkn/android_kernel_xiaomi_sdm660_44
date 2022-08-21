@@ -168,6 +168,7 @@ nft_payload_select_ops(const struct nft_ctx *ctx,
 {
 	enum nft_payload_bases base;
 	unsigned int offset, len;
+	int err;
 
 	if (tb[NFTA_PAYLOAD_DREG] == NULL ||
 	    tb[NFTA_PAYLOAD_BASE] == NULL ||
@@ -185,8 +186,22 @@ nft_payload_select_ops(const struct nft_ctx *ctx,
 		return ERR_PTR(-EOPNOTSUPP);
 	}
 
-	offset = ntohl(nla_get_be32(tb[NFTA_PAYLOAD_OFFSET]));
-	len    = ntohl(nla_get_be32(tb[NFTA_PAYLOAD_LEN]));
+	if (tb[NFTA_PAYLOAD_SREG] != NULL) {
+		if (tb[NFTA_PAYLOAD_DREG] != NULL)
+			return ERR_PTR(-EINVAL);
+		return &nft_payload_set_ops;
+	}
+
+	if (tb[NFTA_PAYLOAD_DREG] == NULL)
+		return ERR_PTR(-EINVAL);
+
+	err = nft_parse_u32_check(tb[NFTA_PAYLOAD_OFFSET], U8_MAX, &offset);
+	if (err < 0)
+		return ERR_PTR(err);
+
+	err = nft_parse_u32_check(tb[NFTA_PAYLOAD_LEN], U8_MAX, &len);
+	if (err < 0)
+		return ERR_PTR(err);
 
 	if (len <= 4 && is_power_of_2(len) && IS_ALIGNED(offset, len) &&
 	    base != NFT_PAYLOAD_LL_HEADER)
