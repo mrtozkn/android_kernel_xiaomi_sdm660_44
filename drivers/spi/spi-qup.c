@@ -945,6 +945,17 @@ static int spi_qup_pm_resume_runtime(struct device *device)
 	struct spi_master *master = dev_get_drvdata(device);
 	struct spi_qup *controller = spi_master_get_devdata(master);
 	u32 config;
+	int ret;
+
+	ret = clk_prepare_enable(controller->iclk);
+	if (ret)
+		return ret;
+
+	ret = clk_prepare_enable(controller->cclk);
+	if (ret) {
+		clk_disable_unprepare(controller->iclk);
+		return ret;
+	}
 
 	/* Disable clocks auto gaiting */
 	config = readl_relaxed(controller->base + QUP_CONFIG);
