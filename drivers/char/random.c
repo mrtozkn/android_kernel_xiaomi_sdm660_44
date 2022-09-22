@@ -875,7 +875,7 @@ struct fast_pool {
 	unsigned long pool[4];
 	unsigned long last;
 	unsigned int count;
-	struct work_struct mix;
+	struct timer_list mix;
 };
 
 static DEFINE_PER_CPU(struct fast_pool, irq_randomness) = {
@@ -904,9 +904,32 @@ static void fast_mix(unsigned long s[4], unsigned long v1, unsigned long v2)
 	s[0] ^= v2;
 }
 
-static void mix_interrupt_randomness(struct work_struct *work)
+#ifdef CONFIG_SMP
+/*
+ * This function is called when the CPU has just come online, with
+ * entry CPUHP_AP_RANDOM_ONLINE, just after CPUHP_AP_WORKQUEUE_ONLINE.
+ */
+int __cold random_online_cpu(unsigned int cpu)
 {
-	struct fast_pool *fast_pool = container_of(work, struct fast_pool, mix);
+	/*
+	 * During CPU shutdown and before CPU onlining, add_interrupt_
+	 * randomness() may schedule mix_interrupt_randomness(), and
+	 * set the MIX_INFLIGHT flag. However, because the worker can
+	 * be scheduled on a different CPU during this period, that
+	 * flag will never be cleared. For that reason, we zero out
+	 * the flag here, which runs just after workqueues are onlined
+	 * for the CPU again. This also has the effect of setting the
+	 * irq randomness count to zero so that new accumulated irqs
+	 * are fresh.
+	 */
+	per_cpu_ptr(&irq_randomness, cpu)->count = 0;
+	return 0;
+}
+#endif
+
+static void mix_interrupt_randomness(unsigned long data)
+{
+	struct fast_pool *fast_pool = (struct fast_pool *)data;
 	/*
 	 * The size of the copied stack pool is explicitly 2 longs so that we
 	 * only ever ingest half of the siphash output each time, retaining
@@ -958,10 +981,14 @@ void add_interrupt_randomness(int irq)
 	if (new_count < 1024 && !time_is_before_jiffies(fast_pool->last + HZ))
 		return;
 
-	if (unlikely(!fast_pool->mix.func))
-		INIT_WORK(&fast_pool->mix, mix_interrupt_randomness);
+	if (unlikely(!fast_pool->mix.data))
+		setup_timer(&fast_pool->mix, mix_interrupt_randomness, (unsigned long)fast_pool);
+
 	fast_pool->count |= MIX_INFLIGHT;
-	queue_work_on(raw_smp_processor_id(), system_highpri_wq, &fast_pool->mix);
+	if (!timer_pending(&fast_pool->mix)) {
+		fast_pool->mix.expires = jiffies;
+		add_timer_on(&fast_pool->mix, raw_smp_processor_id());
+	}
 }
 EXPORT_SYMBOL_GPL(add_interrupt_randomness);
 
