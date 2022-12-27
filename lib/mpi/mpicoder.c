@@ -495,10 +495,10 @@ MPI mpi_read_raw_from_sgl(struct scatterlist *sgl, unsigned int len)
 	x = BYTES_PER_MPI_LIMB - nbytes % BYTES_PER_MPI_LIMB;
 	x %= BYTES_PER_MPI_LIMB;
 
-	for_each_sg(sgl, sg, ents, i) {
-		const u8 *buffer = sg_virt(sg) + lzeros;
-		int len = sg->length - lzeros;
-		int buf_shift = x;
+	while (sg_miter_next(&miter)) {
+		buff = miter.addr;
+		len = min_t(unsigned, miter.length, nbytes);
+		nbytes -= len;
 
 		if  (sg_is_last(sg) && (len % BYTES_PER_MPI_LIMB))
 			len += BYTES_PER_MPI_LIMB - (len % BYTES_PER_MPI_LIMB);
