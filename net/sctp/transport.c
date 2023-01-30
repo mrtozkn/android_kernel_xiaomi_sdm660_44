@@ -201,9 +201,18 @@ void sctp_transport_reset_timers(struct sctp_transport *transport)
 			sctp_transport_hold(transport);
 
 	/* When a data chunk is sent, reset the heartbeat interval.  */
+	expires = jiffies + sctp_transport_timeout(transport);
 	if (!mod_timer(&transport->hb_timer,
-		       sctp_transport_timeout(transport)))
-	    sctp_transport_hold(transport);
+		       expires + prandom_u32_max(transport->rto)))
+		sctp_transport_hold(transport);
+}
+
+void sctp_transport_reset_reconf_timer(struct sctp_transport *transport)
+{
+	if (!timer_pending(&transport->reconf_timer))
+		if (!mod_timer(&transport->reconf_timer,
+			       jiffies + transport->rto))
+			sctp_transport_hold(transport);
 }
 
 /* This transport has been assigned to an association.
