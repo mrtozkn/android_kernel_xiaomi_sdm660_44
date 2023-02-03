@@ -189,7 +189,6 @@ static void __do_kernel_fault(struct mm_struct *mm, unsigned long addr,
 	show_pte(mm, addr);
 	die("Oops", regs, esr);
 	bust_spinlocks(0);
-	make_task_dead(SIGKILL);
 }
 
 /*
