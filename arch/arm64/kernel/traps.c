@@ -324,8 +324,11 @@ static void oops_end(unsigned long flags, struct pt_regs *regs, int notify)
 		panic("Fatal exception in interrupt");
 	if (panic_on_oops)
 		panic("Fatal exception");
-	if (notify != NOTIFY_STOP)
-		do_exit(SIGSEGV);
+
+	raw_spin_unlock_irqrestore(&die_lock, flags);
+
+	if (ret != NOTIFY_STOP)
+		make_task_dead(SIGSEGV);
 }
 
 /*
