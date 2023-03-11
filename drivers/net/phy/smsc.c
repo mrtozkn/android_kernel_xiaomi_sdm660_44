@@ -110,8 +110,12 @@ static int lan911x_config_init(struct phy_device *phydev)
  */
 static int lan87xx_read_status(struct phy_device *phydev)
 {
-	int err = genphy_read_status(phydev);
-	int i;
+	struct smsc_phy_priv *priv = phydev->priv;
+	int err;
+
+	err = genphy_read_status(phydev);
+	if (err)
+		return err;
 
 	if (!phydev->link) {
 		/* Disable EDPD to wake up PHY */
