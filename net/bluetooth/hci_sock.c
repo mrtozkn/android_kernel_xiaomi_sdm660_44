@@ -689,6 +689,34 @@ static int hci_sock_ioctl(struct socket *sock, unsigned int cmd,
 		goto done;
 	}
 
+	/* When calling an ioctl on an unbound raw socket, then ensure
+	 * that the monitor gets informed. Ensure that the resulting event
+	 * is only send once by checking if the cookie exists or not. The
+	 * socket cookie will be only ever generated once for the lifetime
+	 * of a given socket.
+	 */
+	if (hci_sock_gen_cookie(sk)) {
+		struct sk_buff *skb;
+
+		/* Perform careful checks before setting the HCI_SOCK_TRUSTED
+		 * flag. Make sure that not only the current task but also
+		 * the socket opener has the required capability, since
+		 * privileged programs can be tricked into making ioctl calls
+		 * on HCI sockets, and the socket should not be marked as
+		 * trusted simply because the ioctl caller is privileged.
+		 */
+		if (sk_capable(sk, CAP_NET_ADMIN))
+			hci_sock_set_flag(sk, HCI_SOCK_TRUSTED);
+
+		/* Send event to monitor */
+		skb = create_monitor_ctrl_open(sk);
+		if (skb) {
+			hci_send_to_channel(HCI_CHANNEL_MONITOR, skb,
+					    HCI_SOCK_TRUSTED, NULL);
+			kfree_skb(skb);
+		}
+	}
+
 	release_sock(sk);
 
 	switch (cmd) {
