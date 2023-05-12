@@ -894,10 +894,10 @@ static int nbd_dev_dbg_init(struct nbd_device *nbd)
 	struct dentry *f;
 
 	dir = debugfs_create_dir(nbd_name(nbd), nbd_dbg_dir);
-	if (IS_ERR_OR_NULL(dir)) {
-		dev_err(nbd_to_dev(nbd), "Failed to create debugfs dir for '%s' (%ld)\n",
-			nbd_name(nbd), PTR_ERR(dir));
-		return PTR_ERR(dir);
+	if (IS_ERR(dir)) {
+		dev_err(nbd_to_dev(nbd), "Failed to create debugfs dir for '%s'\n",
+			nbd_name(nbd));
+		return -EIO;
 	}
 	nbd->dbg_dir = dir;
 
@@ -950,7 +950,7 @@ static int nbd_dbg_init(void)
 
 	dbg_dir = debugfs_create_dir("nbd", NULL);
 	if (IS_ERR(dbg_dir))
-		return PTR_ERR(dbg_dir);
+		return -EIO;
 
 	nbd_dbg_dir = dbg_dir;
 
