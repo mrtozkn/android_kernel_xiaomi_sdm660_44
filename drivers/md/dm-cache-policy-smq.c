@@ -828,6 +828,16 @@ struct smq_policy {
 
 	unsigned long next_hotspot_period;
 	unsigned long next_cache_period;
+
+	struct background_tracker *bg_work;
+
+	bool migrations_allowed:1;
+
+	/*
+	 * If this is set the policy will try and clean the whole cache
+	 * even if the device is not idle.
+	 */
+	bool cleaner:1;
 };
 
 /*----------------------------------------------------------------*/
@@ -1099,8 +1109,16 @@ static int demote_cblock(struct smq_policy *mq,
 			 struct policy_locker *locker,
 			 dm_oblock_t *oblock)
 {
-	struct entry *demoted = q_peek(&mq->clean, mq->clean.nr_levels, false);
-	if (!demoted)
+	return from_cblock(mq->cache_size) * p / 100u;
+}
+
+static bool clean_target_met(struct smq_policy *mq, bool idle)
+{
+	/*
+	 * Cache entries may not be populated.  So we cannot rely on the
+	 * size of the clean queue.
+	 */
+	if (idle || mq->cleaner) {
 		/*
 		 * We could get a block from mq->dirty, but that
 		 * would add extra latency to the triggering bio as it
@@ -1606,9 +1624,9 @@ static void calc_hotspot_params(sector_t origin_size,
 		*hotspot_block_size /= 2u;
 }
 
-static struct dm_cache_policy *smq_create(dm_cblock_t cache_size,
-					  sector_t origin_size,
-					  sector_t cache_block_size)
+static struct dm_cache_policy *
+__smq_create(dm_cblock_t cache_size, sector_t origin_size, sector_t cache_block_size,
+	     bool mimic_mq, bool migrations_allowed, bool cleaner)
 {
 	unsigned i;
 	unsigned nr_sentinels_per_queue = 2u * NR_CACHE_LEVELS;
@@ -1690,6 +1708,13 @@ static struct dm_cache_policy *smq_create(dm_cblock_t cache_size,
 	mq->next_hotspot_period = jiffies;
 	mq->next_cache_period = jiffies;
 
+	mq->bg_work = btracker_create(10240); /* FIXME: hard coded value */
+	if (!mq->bg_work)
+		goto bad_btracker;
+
+	mq->migrations_allowed = migrations_allowed;
+	mq->cleaner = cleaner;
+
 	return &mq->policy;
 
 bad_alloc_hotspot_table:
@@ -1704,6 +1729,30 @@ bad_pool_init:
 	kfree(mq);
 
 	return NULL;
+}
+
+static struct dm_cache_policy *smq_create(dm_cblock_t cache_size,
+					  sector_t origin_size,
+					  sector_t cache_block_size)
+{
+	return __smq_create(cache_size, origin_size, cache_block_size,
+			    false, true, false);
+}
+
+static struct dm_cache_policy *mq_create(dm_cblock_t cache_size,
+					 sector_t origin_size,
+					 sector_t cache_block_size)
+{
+	return __smq_create(cache_size, origin_size, cache_block_size,
+			    true, true, false);
+}
+
+static struct dm_cache_policy *cleaner_create(dm_cblock_t cache_size,
+					      sector_t origin_size,
+					      sector_t cache_block_size)
+{
+	return __smq_create(cache_size, origin_size, cache_block_size,
+			    false, false, true);
 }
 
 /*----------------------------------------------------------------*/
