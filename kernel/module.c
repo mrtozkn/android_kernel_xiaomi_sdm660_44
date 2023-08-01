@@ -2075,11 +2075,9 @@ void *__symbol_get(const char *symbol)
 	preempt_enable();
 
 	return sym ? (void *)sym->value : NULL;
-
 fail:
 	preempt_enable();
 	return NULL;
-
 }
 EXPORT_SYMBOL_GPL(__symbol_get);
 
