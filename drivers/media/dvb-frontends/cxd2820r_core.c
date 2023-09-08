@@ -695,6 +695,42 @@ struct dvb_frontend *cxd2820r_attach(const struct cxd2820r_config *cfg,
 		struct i2c_adapter *i2c, int *gpio_chip_base
 )
 {
+	struct i2c_client *client;
+	struct i2c_board_info board_info;
+	struct cxd2820r_platform_data pdata;
+
+	pdata.ts_mode = config->ts_mode;
+	pdata.ts_clk_inv = config->ts_clock_inv;
+	pdata.if_agc_polarity = config->if_agc_polarity;
+	pdata.spec_inv = config->spec_inv;
+	pdata.gpio_chip_base = &gpio_chip_base;
+	pdata.attach_in_use = true;
+
+	memset(&board_info, 0, sizeof(board_info));
+	strlcpy(board_info.type, "cxd2820r", I2C_NAME_SIZE);
+	board_info.addr = config->i2c_address;
+	board_info.platform_data = &pdata;
+	client = i2c_new_device(adapter, &board_info);
+	if (!client || !client->dev.driver)
+		return NULL;
+
+	return pdata.get_dvb_frontend(client);
+}
+EXPORT_SYMBOL_GPL(cxd2820r_attach);
+
+static struct dvb_frontend *cxd2820r_get_dvb_frontend(struct i2c_client *client)
+{
+	struct cxd2820r_priv *priv = i2c_get_clientdata(client);
+
+	dev_dbg(&client->dev, "\n");
+
+	return &priv->fe;
+}
+
+static int cxd2820r_probe(struct i2c_client *client,
+			  const struct i2c_device_id *id)
+{
+	struct cxd2820r_platform_data *pdata = client->dev.platform_data;
 	struct cxd2820r_priv *priv;
 	int ret;
 	u8 tmp;
