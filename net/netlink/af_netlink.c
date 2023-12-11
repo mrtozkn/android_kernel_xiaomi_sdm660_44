@@ -1006,6 +1006,7 @@ static int netlink_bind(struct socket *sock, struct sockaddr *addr,
 	/* No need for barriers here as we return to user-space without
 	 * using any of the bound attributes.
 	 */
+	netlink_lock_table();
 	if (!bound) {
 		err = nladdr->nl_pid ?
 			netlink_insert(sk, nladdr->nl_pid) :
