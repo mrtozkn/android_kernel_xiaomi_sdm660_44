@@ -1927,7 +1927,7 @@ restart:
 			}
 
 			if (page && page_count(page) !=
-			    hpage_nr_pages(page) + total_mapcount(page)) {
+			    hpage_nr_pages(page) + page_mapcount(page)) {
 				if (scan < LAST_SCAN)
 					goto continue_resched;
 

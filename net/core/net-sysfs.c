@@ -195,17 +195,16 @@ static ssize_t speed_show(struct device *dev,
 	struct net_device *netdev = to_net_dev(dev);
 	int ret = -EINVAL;
 
-	if (!rtnl_trylock())
-		return restart_syscall();
+	        if (!rtnl_trylock())
+                return restart_syscall();
 
-	if (netif_running(netdev) && netif_device_present(netdev)) {
-		struct ethtool_link_ksettings cmd;
-
-		if (!__ethtool_get_link_ksettings(netdev, &cmd))
-			ret = sprintf(buf, fmt_dec, cmd.base.speed);
-	}
-	rtnl_unlock();
-	return ret;
+        if (netif_running(netdev)) {
+                struct ethtool_cmd cmd;
+                if (!__ethtool_get_settings(netdev, &cmd))
+                        ret = sprintf(buf, fmt_dec, ethtool_cmd_speed(&cmd));
+        }
+        rtnl_unlock();
+        return ret;
 }
 static DEVICE_ATTR_RO(speed);
 
