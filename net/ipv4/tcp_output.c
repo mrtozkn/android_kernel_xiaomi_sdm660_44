@@ -2875,7 +2875,7 @@ begin_fwd:
  */
 void sk_forced_mem_schedule(struct sock *sk, int size)
 {
-	int delta, amt;
+	int delta, amt, status;
 
 	delta = size - sk->sk_forward_alloc;
 	if (delta <= 0)
