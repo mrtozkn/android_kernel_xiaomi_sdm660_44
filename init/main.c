@@ -175,6 +175,22 @@ static int __init set_cpuoverclock(char *val)
 }
 __setup("androidboot.cpuoverclock=", set_cpuoverclock);
 
+u64 zram_size = 0;
+static int __init set_zram_size(u64 *val)
+{
+        u64 temp;
+
+        get_option(&val, &temp);
+
+        if (temp != 0) {
+                zram_size = temp;
+                pr_info("Kernel: Zram is resized to %d bytes", temp);
+        }
+
+        return 0;
+}
+__setup("androidboot.zramsize=", set_zram_size);
+
 /*
  * Used to generate warnings if static_key manipulation functions are used
  * before jump_label_init is called.
