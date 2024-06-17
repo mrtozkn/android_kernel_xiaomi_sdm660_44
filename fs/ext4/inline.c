@@ -74,7 +74,7 @@ static int get_max_inline_xattr_value_size(struct inode *inode,
 					 "corrupt xattr in inline inode");
 			return 0;
 		}
-		if (!entry->e_value_inum && entry->e_value_size) {
+		if (!entry->e_value_block && entry->e_value_size) {
 			size_t offs = le16_to_cpu(entry->e_value_offs);
 			if (offs < min_offs)
 				min_offs = offs;
