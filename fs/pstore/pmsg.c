@@ -15,6 +15,7 @@
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
+#include <linux/vmalloc.h>
 #include "internal.h"
 
 static DEFINE_MUTEX(pmsg_lock);
@@ -33,7 +34,8 @@ static ssize_t write_pmsg(struct file *file, const char __user *buf,
 		return -EFAULT;
 
 	mutex_lock(&pmsg_lock);
-	ret = psinfo->write_user(&record, buf);
+	ret = psinfo->write_buf_user(PSTORE_TYPE_PMSG, 0, &id, 0, buf, 0, count,
+				     psinfo);
 	mutex_unlock(&pmsg_lock);
 	return ret ? ret : count;
 }
