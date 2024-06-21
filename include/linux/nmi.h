@@ -79,7 +79,6 @@ static inline bool trigger_allbutself_cpu_backtrace(void)
 #ifdef CONFIG_LOCKUP_DETECTOR
 int hw_nmi_is_cpu_stuck(struct pt_regs *);
 u64 hw_nmi_get_sample_period(int watchdog_thresh);
-#endif
 
 #if defined(CONFIG_HARDLOCKUP_CHECK_TIMESTAMP) && \
     defined(CONFIG_HARDLOCKUP_DETECTOR_PERF)
