@@ -595,6 +595,7 @@ static int u32_set_parms(struct net *net, struct tcf_proto *tp,
 			 struct nlattr *est, bool ovr)
 {
 	int err;
+        struct tcf_exts e;
 #ifdef CONFIG_NET_CLS_IND
 	int ifindex = -1;
 #endif
