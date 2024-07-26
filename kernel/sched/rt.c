@@ -14,6 +14,7 @@
 #include "tune.h"
 
 int sched_rr_timeslice = RR_TIMESLICE;
+int sysctl_sched_rr_timeslice = (MSEC_PER_SEC / HZ) * RR_TIMESLICE;
 
 static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun);
 
@@ -1618,7 +1619,6 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags,
 	}
 	rcu_read_unlock();
 
-out:
 	/*
 	 * If previous CPU was different, make sure to cancel any active
 	 * schedtune timers and deboost.
