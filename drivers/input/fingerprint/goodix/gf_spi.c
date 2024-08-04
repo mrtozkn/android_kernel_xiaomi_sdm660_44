@@ -41,6 +41,7 @@
 #include <linux/fb.h>
 #include <linux/pm_qos.h>
 #include <linux/cpufreq.h>
+#include <linux/wakelock.h>
 #include <linux/mdss_io_util.h>
 #include "gf_spi.h"
 
@@ -75,8 +76,8 @@ static int SPIDEV_MAJOR;
 
 static DECLARE_BITMAP(minors, N_SPI_MINORS);
 static LIST_HEAD(device_list);
-static DEFINE_RT_MUTEX(device_list_lock);
-static struct wakeup_source fp_wakelock;
+static DEFINE_MUTEX(device_list_lock);
+static struct wake_lock fp_wakelock;
 static struct gf_dev gf;
 
 static struct gf_key_map maps[] = {
@@ -325,7 +326,7 @@ static irqreturn_t gf_irq(int irq, void *handle)
 #if defined(GF_NETLINK_ENABLE)
 	char msg = GF_NET_EVENT_IRQ;
 	struct gf_dev *gf_dev = &gf;
-	__pm_wakeup_event(&fp_wakelock, WAKELOCK_HOLD_TIME);
+	wake_lock_timeout(&fp_wakelock, msecs_to_jiffies(WAKELOCK_HOLD_TIME));
 	sendnlmsg(&msg);
 	if ((gf_dev->wait_finger_down == true) && (gf_dev->device_available == 1) && (gf_dev->fb_black == 1)) {
 		printk("%s:shedule_work\n",__func__);
@@ -348,7 +349,7 @@ static int irq_setup(struct gf_dev *gf_dev)
 
 	gf_dev->irq = gf_irq_num(gf_dev);
 	status = request_threaded_irq(gf_dev->irq, NULL, gf_irq,
-			IRQF_TRIGGER_RISING | IRQF_ONESHOT | IRQF_PERF_CRITICAL,
+			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 			"gf", gf_dev);
 
 	if (status) {
@@ -555,7 +556,7 @@ static int gf_open(struct inode *inode, struct file *filp)
 	struct gf_dev *gf_dev = &gf;
 	int status = -ENXIO;
 
-	rt_mutex_lock(&device_list_lock);
+	mutex_lock(&device_list_lock);
 
 	list_for_each_entry(gf_dev, &device_list, device_entry) {
 		if (gf_dev->devt == inode->i_rdev) {
@@ -587,7 +588,7 @@ static int gf_open(struct inode *inode, struct file *filp)
 	} else {
 		pr_info("No device for minor %d\n", iminor(inode));
 	}
-	rt_mutex_unlock(&device_list_lock);
+	mutex_unlock(&device_list_lock);
 
 	return status;
 err_irq:
@@ -613,7 +614,7 @@ static int gf_release(struct inode *inode, struct file *filp)
 	struct gf_dev *gf_dev = &gf;
 	int status = 0;
 
-	rt_mutex_lock(&device_list_lock);
+	mutex_lock(&device_list_lock);
 	gf_dev = filp->private_data;
 	filp->private_data = NULL;
 
@@ -627,7 +628,7 @@ static int gf_release(struct inode *inode, struct file *filp)
 		gf_dev->device_available = 0;
 		gf_power_off(gf_dev);
 	}
-	rt_mutex_unlock(&device_list_lock);
+	mutex_unlock(&device_list_lock);
 	return status;
 }
 
@@ -648,18 +649,6 @@ static const struct file_operations gf_fops = {
 #endif
 };
 
-static void set_fingerprintd_nice(int nice)
-{
-	struct task_struct *p;
-
-	read_lock(&tasklist_lock);
-	for_each_process(p) {
-		if (strstr(p->comm, "erprint"))
-			set_user_nice(p, nice);
-	}
-	read_unlock(&tasklist_lock);
-}
-
 static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 		unsigned long val, void *data)
 {
@@ -676,7 +665,6 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 		blank = *(int *)(evdata->data);
 		switch (blank) {
 		case FB_BLANK_POWERDOWN:
-			set_fingerprintd_nice(MIN_NICE);
 			if (gf_dev->device_available == 1) {
 				gf_dev->fb_black = 1;
 				gf_dev->wait_finger_down = true;
@@ -695,7 +683,6 @@ static int goodix_fb_state_chg_callback(struct notifier_block *nb,
 			break;
 		case FB_BLANK_UNBLANK:
 		case FB_BLANK_NORMAL:
-			set_fingerprintd_nice(0);
 			if (gf_dev->device_available == 1) {
 				gf_dev->fb_black = 0;
 				/* Unconditionally enable IRQ when screen turns on */
@@ -808,7 +795,7 @@ static int gf_probe(struct platform_device *pdev)
 	/* If we can allocate a minor number, hook up this device.
 	 * Reusing minors is fine so long as udev or mdev is working.
 	 */
-	rt_mutex_lock(&device_list_lock);
+	mutex_lock(&device_list_lock);
 	minor = find_first_zero_bit(minors, N_SPI_MINORS);
 	if (minor < N_SPI_MINORS) {
 		struct device *dev;
@@ -820,7 +807,7 @@ static int gf_probe(struct platform_device *pdev)
 	} else {
 		dev_dbg(&gf_dev->spi->dev, "no minor number available!\n");
 		status = -ENODEV;
-		rt_mutex_unlock(&device_list_lock);
+		mutex_unlock(&device_list_lock);
 		goto error_hw;
 	}
 
@@ -831,7 +818,7 @@ static int gf_probe(struct platform_device *pdev)
 		gf_dev->devt = 0;
 		goto error_hw;
 	}
-	rt_mutex_unlock(&device_list_lock);
+	mutex_unlock(&device_list_lock);
 
 	gf_dev->input = input_allocate_device();
 	if (gf_dev->input == NULL) {
@@ -872,7 +859,7 @@ static int gf_probe(struct platform_device *pdev)
 		goto error_sysfs;
 	}
 
-	wakeup_source_init(&fp_wakelock, "fp_wakelock");
+	wake_lock_init(&fp_wakelock, WAKE_LOCK_SUSPEND, "fp_wakelock");
 
 	pr_info("version V%d.%d.%02d\n", VER_MAJOR, VER_MINOR, PATCH_LEVEL);
 
@@ -892,11 +879,11 @@ error_input:
 error_dev:
 	if (gf_dev->devt != 0) {
 		pr_info("Err: status = %d\n", status);
-		rt_mutex_lock(&device_list_lock);
+		mutex_lock(&device_list_lock);
 		list_del(&gf_dev->device_entry);
 		device_destroy(gf_class, gf_dev->devt);
 		clear_bit(MINOR(gf_dev->devt), minors);
-		rt_mutex_unlock(&device_list_lock);
+		mutex_unlock(&device_list_lock);
 	}
 error_hw:
 	gf_dev->device_available = 0;
@@ -912,18 +899,18 @@ static int gf_remove(struct platform_device *pdev)
 {
 	struct gf_dev *gf_dev = &gf;
 
-	wakeup_source_trash(&fp_wakelock);
+	wake_lock_destroy(&fp_wakelock);
 	fb_unregister_client(&gf_dev->notifier);
 	if (gf_dev->input)
 		input_unregister_device(gf_dev->input);
 	input_free_device(gf_dev->input);
 
 	/* prevent new opens */
-	rt_mutex_lock(&device_list_lock);
+	mutex_lock(&device_list_lock);
 	list_del(&gf_dev->device_entry);
 	device_destroy(gf_class, gf_dev->devt);
 	clear_bit(MINOR(gf_dev->devt), minors);
-	rt_mutex_unlock(&device_list_lock);
+	mutex_unlock(&device_list_lock);
 
 	return 0;
 }
