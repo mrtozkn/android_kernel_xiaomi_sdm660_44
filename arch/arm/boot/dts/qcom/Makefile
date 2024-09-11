@@ -229,6 +229,7 @@ dtb-$(CONFIG_KERNEL_XIAOMI_WHYRED) := sdm636-mtp_whyred-qti.dtb
 else
 dtb-$(CONFIG_KERNEL_XIAOMI_A26X) := sdm660-mtp.dtb sdm660-mtp_jasmine.dtb sdm660-mtp_wayne.dtb
 dtb-$(CONFIG_KERNEL_XIAOMI_LAVENDER) := sdm660-mtp_lavender.dtb
+dtb-$(CONFIG_MACH_XIAOMI_JASON) := sdm660-mtp-jason.dtb
 dtb-$(CONFIG_KERNEL_XIAOMI_TULIP) := sdm636-mtp_tulip.dtb
 dtb-$(CONFIG_KERNEL_XIAOMI_WHYRED) := sdm636-mtp_whyred.dtb
 endif
